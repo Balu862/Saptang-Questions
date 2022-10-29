@@ -1,0 +1,90 @@
+import time
+from selenium import webdriver
+from selenium.webdriver.support.select import Select
+from selenium.webdriver.common.by import By
+
+import pymongo
+
+myclient = pymongo.MongoClient("mongodb://localhost:27017/")
+
+
+driver = webdriver.Chrome("/Users/balu/Documents/testing project/chromedriver")
+driver.get("https://poets.org/poems")
+next_button = ""
+time.sleep(3)
+occasions = driver.find_element(By.XPATH, '//*[@id="__BVID__66"]')
+time.sleep(3)
+themes = driver.find_element(By.XPATH, '//*[@id="__BVID__67"]')
+forms = driver.find_element(By.XPATH, '//*[@id="__BVID__68"]')
+print("\n\n\n occasions", occasions.text, "\n", themes.text, "\n\n\n")
+select_occasions = Select(occasions)
+select_themes = Select(themes)
+select_forms = Select(forms)
+select_occasions.select_by_visible_text("Birthdays")
+time.sleep(3)
+# select_themes.select_by_visible_text("Beginning")
+# time.sleep(5)
+
+page = 3
+number_of_poems = 0
+
+
+def get_poem_details(page, list_of_data, number_of_poems):
+    time.sleep(5)
+    url_of_page_button = f'//*[@id="__layout"]/div/div[4]/div[3]/div/ul/li[{page}]/a'
+    poem_data = driver.find_element(By.XPATH, '//*[@id="poems"]')
+    rows = poem_data.find_elements(By.TAG_NAME, "tr")
+    current_table_data = []
+    for i in rows[1:]:
+        data = i.text.split("\n")
+        current_table_data.append(data)
+    list_of_links = []
+    for count in range(len(current_table_data)):
+        url = f'//*[@id="poems"]/tbody/tr[{count+1}]/td[1]'
+        print("\n\n\n\nurl ", url, "\n\n\n\n\n\n")
+        table_body = driver.find_element(By.XPATH, url)
+        print("\n\n\n\n table body", table_body.text, "\n\n\n\n\n")
+        links = table_body.find_elements(By.TAG_NAME, "a")[0]
+        print("\n\n\n\n Link", links.text, "\n\n\n\n\n")
+        links.click()
+        time.sleep(3)
+        poem = driver.find_element(
+            By.XPATH, '//*[@id="__layout"]/div/div[4]/div[1]/div/div/main/div[2]/div[2]'
+        )
+        print("\n\n\n\n poem", poem.text, "\n\n\n\n\n")
+        current_table_data[count].append(poem.text)
+        driver.back()
+        time.sleep(3)
+        number_of_poems += 1
+    list_of_data = list_of_data+current_table_data
+    try:
+        next_button = driver.find_element(By.XPATH, url_of_page_button)
+        print("\n\n\n\n\n next_button", next_button.text, "\n\n\n\n\n\n")
+        next_button.click()
+       
+    except:
+        print("\n\n\n No next button", "\n\n\n\n\n\n")
+        return list_of_data
+    page += 1
+    time.sleep(5)
+    print("\n\n\n Before recursion",page,"\n\n",list_of_data,"\n\n",number_of_poems, "\n\n\n\n\n\n")
+    if not next_button:
+        return list_of_data
+    else:
+        list_of_data = get_poem_details(
+            page=page, list_of_data=list_of_data, number_of_poems=number_of_poems
+        )
+    return list_of_data
+data = []
+list_of_data = get_poem_details(3, data, number_of_poems)
+print("\n\n\n\\n\n\n list of data", list_of_data, "\n\n\n\n\n\n")
+mydb = myclient["Poems"]
+mycol = mydb["Birthday"]
+for poem in list_of_data:
+    try:
+        mydict = {"Title": poem[0],"Poem":poem[3], "Author":poem[1], "Year":poem[2]}
+        x = mycol.insert_one(mydict)
+        print(x)
+    except:
+        continue
+    
